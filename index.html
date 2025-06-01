@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <!-- Carrega a biblioteca Turf.js para operações geoespaciais (buffer) -->
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+    <!-- Links para as folhas de estilo (CSS) -->
+    <link rel="stylesheet" href="./resources/ol.css">
+    <link rel="stylesheet" href="resources/fontawesome-all.min.css"> <!-- Ícones FontAwesome -->
+    <link href="resources/ol-geocoder.min.css" rel="stylesheet"> <!-- Geocodificador -->
+    <link rel="stylesheet" href="./resources/ol-layerswitcher.css"> <!-- Controle de Camadas -->
+    <link rel="stylesheet" href="./resources/qgis2web.css"> <!-- Estilos base do qgis2web -->
+    <!-- Estilos CSS customizados -->
+    <style>
+        /* Estilos gerais para HTML e Body */
+        html,
+        body {
+            background-color: #ffffff;
+            /* Remove margens e padding padrão */
+            padding: 0;
+            margin: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden; /* Evita barras de rolagem na página */
+        }
+
+        /* Estilo para o container do mapa */
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Estilos para os controles padrão do OpenLayers */
+        .ol-control>* {
+            background-color: #f8f8f8 !important;
+            color: #444444 !important;
+            border-radius: 0px;
+        }
+
+        /* Estilos para links de atribuição e placeholders */
+        .ol-attribution a,
+        .gcd-gl-input::placeholder,
+        .search-layer-input-search::placeholder {
+            color: #444444 !important;
+        }
+
+        /* Estilo para o campo de busca de camada */
+        .search-layer-input-search {
+            background-color: #f8f8f8 !important;
+        }
+
+        /* Efeito hover/focus nos controles */
+        .ol-control>*:focus,
+        .ol-control>*:hover {
+            background-color: rgba(248, 248, 248, 0.7) !important;
+        }
+
+        /* Estilo base para os containers de controle */
+        .ol-control {
+            background-color: rgba(255, 255, 255, .4) !important;
+            padding: 2px !important;
+        }
+
+        /* Estilo para o título do mapa */
+        #map-title {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(255, 255, 255, 0.8);
+            padding: 5px 15px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            z-index: 1002; /* Garante que fique sobre outros elementos */
+            font-family: sans-serif;
+            font-size: 16px;
+            font-weight: bold;
+            box-shadow: 1px 1px 3px rgba(0, 0, 0, 0.15);
+            white-space: nowrap; /* Evita quebra de linha */
+        }
+
+        /* Estilos para o painel de buffer */
+        #buffer-controls {
+            position: absolute;
+            top: 250px; /* Posição inicial vertical */
+            left: 10px; /* Posição inicial horizontal */
+            background-color: rgba(248, 248, 248, 0.9);
+            padding: 0; /* Padding será aplicado ao header e content */
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            z-index: 1001; /* Sobrepõe outros controles */
+            font-family: sans-serif;
+            font-size: 12px;
+            box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.2);
+            width: 200px; /* Largura fixa do painel */
+        }
+
+        /* Estilo para o cabeçalho arrastável do painel de buffer */
+        #buffer-controls-header {
+            padding: 8px 10px;
+            cursor: move; /* Indica que é arrastável */
+            background-color: #e0e0e0;
+            border-bottom: 1px solid #ccc;
+            border-top-left-radius: 4px;
+            border-top-right-radius: 4px;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        /* Estilo para o conteúdo interno do painel de buffer */
+        #buffer-controls-content {
+            padding: 10px;
+        }
+
+        /* Estilos para labels, inputs e botões dentro do painel */
+        #buffer-controls label,
+        #buffer-controls input,
+        #buffer-controls button {
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        #buffer-controls input {
+            width: calc(100% - 10px); /* Ocupa quase toda a largura */
+            box-sizing: border-box;
+        }
+
+        #buffer-controls button {
+            padding: 6px 12px;
+            cursor: pointer;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        /* Estilo específico para o botão de ativar/desativar buffer */
+        #toggle-buffer-tool {
+            margin-bottom: 8px;
+            border: 1px solid #ccc;
+            border-radius: 2px;
+        }
+
+        /* Estilo para o controle de upload */
+        #upload-control {
+            position: absolute;
+            top: 165px; /* Posição abaixo do controle de camadas */
+            left: 8px;
+            background-color: rgba(255, 255, 255, 0.4);
+            padding: 2px;
+            z-index: 1000;
+        }
+
+        #upload-layer-button {
+            background-color: #f8f8f8;
+            color: #444444;
+            border: none;
+            border-radius: 0px;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            padding: 0;
+        }
+
+        /* Estilo para o controle de captura de coordenadas */
+        #coord-capture-control {
+            position: absolute;
+            top: 200px; /* Posição abaixo do controle de upload */
+            left: 8px;
+            background-color: rgba(255, 255, 255, 0.4);
+            padding: 2px;
+            z-index: 1000;
+        }
+
+        #coord-capture-button {
+            background-color: #f8f8f8;
+            color: #444444;
+            border: none;
+            border-radius: 0px;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            padding: 0;
+        }
+
+        /* Estilo para a caixa de exibição de coordenadas */
+        #coord-display {
+            position: absolute;
+            bottom: 30px; /* Posição no canto inferior esquerdo */
+            left: 10px;
+            background-color: rgba(255, 255, 255, 0.8);
+            padding: 5px 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            z-index: 1001;
+            font-family: sans-serif;
+            font-size: 11px;
+            display: none; /* Começa escondido */
+        }
+    </style>
+    <title>Web Map - UC. ProgWeb - Aluno: 20240619</title>
+</head>
+
+<body>
+    <!-- Div principal que contém o mapa -->
+    <div id="map">
+        <!-- Título do mapa -->
+        <div id="map-title">Trabalho Final - Aplicação WebGIS</div>
+        <!-- Popup para exibir informações sobre as feições clicadas -->
+        <div id="popup" class="ol-popup">
+            <a href="#" id="popup-closer" class="ol-popup-closer"></a>
+            <div id="popup-content"></div>
+        </div>
+    </div>
+
+    <!-- Controle de Upload: Botão para carregar camadas GeoJSON/KML -->
+    <div id="upload-control" class="ol-unselectable ol-control">
+        <button title="Carregar Camada (GeoJSON/KML)" id="upload-layer-button">
+            <i class="fas fa-upload"></i>
+        </button>
+        <input type="file" id="layer-file-input" accept=".geojson,.kml,application/vnd.google-earth.kml+xml,application/geo+json" style="display: none;">
+    </div>
+
+    <!-- Controle de Captura de Coordenadas: Botão para ativar captura -->
+    <div id="coord-capture-control" class="ol-unselectable ol-control">
+        <button title="Capturar Coordenada" id="coord-capture-button">
+            <i class="fas fa-map-marker-alt"></i>
+        </button>
+    </div>
+    <!-- Div para exibir as coordenadas capturadas -->
+    <div id="coord-display">Coordenadas: -</div>
+
+    <!-- Painel de Controles de Buffer (Arrastável) -->
+    <div id="buffer-controls">
+        <div id="buffer-controls-header">Controles de Buffer</div>
+        <div id="buffer-controls-content">
+            <label for="buffer-radius">Raio do Buffer (km):</label>
+            <input type="number" id="buffer-radius" name="buffer-radius" value="1" min="0.1" step="0.1">
+            <!-- Botão para ativar/desativar a ferramenta de criação de buffer -->
+            <button id="toggle-buffer-tool">Ativar Ferramenta Buffer</button>
+            <button id="clear-buffers">Limpar Buffers</button>
+            <button id="export-buffers">Exportar Buffers (GeoJSON)</button>
+            <!-- Instrução para o usuário sobre o modo buffer -->
+            <p id="buffer-instruction" style="font-size: 10px; margin-top: 10px;">Ative a ferramenta para criar buffers clicando no mapa.</p>
+        </div>
+    </div>
+
+    <!-- Scripts JavaScript -->
+    <!-- Scripts de bibliotecas e funções base -->
+    <script src="resources/qgis2web_expressions.js"></script>
+    <script src="resources/proj4.js"></script>
+    <script>
+        // Define a projeção EPSG:3857 (Web Mercator) para o Proj4js
+        proj4.defs("EPSG:3857", "+proj=merc +a=6378137 +b=6378137 +lat_ts=0 +lon_0=0 +x_0=0 +y_0=0 +k=1 +units=m +nadgrids=@null +wktext +no_defs");
+    </script>
+    <script src="./resources/functions.js"></script>
+    <script src="./resources/ol.js"></script> <!-- Biblioteca OpenLayers -->
+    <script src="./resources/ol-layerswitcher.js"></script> <!-- Controle de Camadas -->
+    <script src="resources/ol-geocoder.js"></script> <!-- Geocodificador -->
+
+    <!-- Scripts para os estilos das camadas (WFS e GeoJSON) -->
+    <script src="styles/UC_2_style.js"></script>
+    <script src="styles/SouthAmericaVIIRSNOAA2124hrsfireshotspotsheatmap_4_style.js"></script>
+    <script src="styles/SouthAmericaVIIRSNOAA2124hrsfireshotspots_5_style.js"></script>
+    <script src="styles/Brazilianbiomeborder_0_style.js"></script>
+    <script src="styles/TerrasindgenasFUNAI_1_style.js"></script>
+    <script src="styles/BrazilianLegalAmazon_2_style.js"></script>
+
+    <!-- Scripts para as definições das camadas GeoJSON locais -->
+    <script src="layers/Brazilianbiomeborder_0.js"></script>
+    <script src="layers/TerrasindgenasFUNAI_1.js"></script>
+    <script src="layers/BrazilianLegalAmazon_2.js"></script>
+
+    <!-- Script principal que carrega as camadas WFS e GeoJSON no mapa -->
+    <script src="./layers/layers.js" type="text/javascript"></script>
+    <!-- Script para Autolinker (links em popups) -->
+    <script src="./resources/Autolinker.min.js"></script>
+    <!-- Script principal do qgis2web (inicializa mapa, popups, etc.) -->
+    <!-- IMPORTANTE: qgis2web.js deve ser carregado ANTES do script customizado -->
+    <script src="./resources/qgis2web.js"></script>
+
+    <!-- Bloco de Script para Funcionalidades Customizadas -->
+    <script>
+        // Utiliza setTimeout para garantir que o script customizado execute APÓS
+        // a inicialização completa do mapa e das camadas base pelo qgis2web.js.
+        // Um atraso pequeno atraso (500ms) para mitigar erros de timing.
+        setTimeout(() => {
+            // Verifica se a variável global 'map' (o objeto principal do mapa OpenLayers)
+            // foi definida pelo qgis2web.js. Se não, as funcionalidades não podem ser adicionadas.
+            if (typeof map !== 'undefined') {
+                // console.log("Mapa inicializado. Adicionando funcionalidades customizadas.");
+				
+                // --- Bloco: Referências a Elementos HTML ---
+                // Armazena referências aos elementos HTML (botões, inputs, divs)
+                // usados pelas funcionalidades customizadas para aumentar a eficiência no acesso.
+                const bufferRadiusInput = document.getElementById('buffer-radius');
+                const clearBuffersButton = document.getElementById('clear-buffers');
+                const exportBuffersButton = document.getElementById('export-buffers');
+                const toggleBufferButton = document.getElementById('toggle-buffer-tool');
+                const bufferInstruction = document.getElementById('buffer-instruction');
+                const coordCaptureButton = document.getElementById('coord-capture-button');
+                const coordDisplay = document.getElementById('coord-display');
+                const bufferPanel = document.getElementById('buffer-controls');
+                const panelHeader = document.getElementById('buffer-controls-header');
+                const uploadButton = document.getElementById('upload-layer-button');
+                const fileInput = document.getElementById('layer-file-input');
+
+                // --- Bloco: Variáveis de Estado das Ferramentas ---
+                // Mantém o controle sobre qual ferramenta customizada está ativa no momento.
+                let isBufferToolActive = false;     // Estado da ferramenta de Buffer
+                let isCoordCaptureActive = false; // Estado da ferramenta de Captura de Coordenadas
+                let coordCaptureListenerKey = null; // Armazena a chave do listener de clique da captura para poder removê-lo depois.
+                // Variáveis para controlar o arraste do painel de buffer.
+                let isDragging = false;
+                let offsetX, offsetY;
+                // Contador para nomear camadas carregadas pelo usuário.
+                let uploadedLayerCounter = 0;
+
+                // --- Bloco: Constantes de Estilo ---
+                // Define estilos visuais usados pelas funcionalidades customizadas.
+                const activeToolColor = '#d4edda'; // Cor de fundo para botões de ferramentas ativas.
+                const inactiveToolColor = '#f8f8f8'; // Cor de fundo padrão para botões inativos.
+                // Estilo para a camada de buffer (preenchimento vermelho semitransparente, borda vermelha).
+                const bufferStyle = new ol.style.Style({
+                    fill: new ol.style.Fill({ color: 'rgba(255, 0, 0, 0.25)' }),
+                    stroke: new ol.style.Stroke({ color: '#ff0000', width: 1 })
+                });
+                // Estilo padrão para camadas carregadas pelo usuário (upload).
+                const defaultUploadStyle = new ol.style.Style({
+                    fill: new ol.style.Fill({ color: 'rgba(0, 0, 255, 0.2)' }), // Azul semitransparente
+                    stroke: new ol.style.Stroke({ color: '#0000ff', width: 1 }), // Borda azul
+                    image: new ol.style.Circle({
+                        radius: 5,
+                        fill: new ol.style.Fill({ color: 'rgba(0, 0, 255, 0.6)' }),
+                        stroke: new ol.style.Stroke({ color: '#0000ff', width: 1 })
+                    })
+                });
+
+                // --- Bloco: Camada Vetorial para Buffers ---
+                // Cria uma fonte vetorial vazia para armazenar as feições de buffer.
+                const bufferSource = new ol.source.Vector();
+                // Cria a camada vetorial que exibirá os buffers.
+                const bufferLayer = new ol.layer.Vector({
+                    source: bufferSource,
+                    style: bufferStyle, // Aplica o estilo definido acima.
+                    title: 'Buffers', // Título no controle de camadas.
+                    zIndex: 999, // Garante que a camada de buffer fique sobre as outras.
+                    declutter: true // Evita sobreposição de geometrias/ícones se aplicável.
+                });
+                map.addLayer(bufferLayer); // Adiciona a camada de buffer ao mapa.
+                // Tenta adicionar a camada de buffer também à lista gerenciada pelo controle de camadas (layersList).
+                if (typeof layersList !== 'undefined') {
+                    layersList.push(bufferLayer);
+                } else {
+                    console.warn("Variável 'layersList' não definida..."); // Aviso se o controle de camadas não for encontrado.
+                }
+
+                // --- Bloco: Funções Auxiliares de Ativação/Desativação de Ferramentas ---
+                // Funções reutilizáveis para ligar/desligar as ferramentas customizadas,
+                // garantindo que o estado visual (cores, texto) e funcional (listeners)
+                // seja atualizado corretamente e que apenas uma ferramenta esteja ativa por vez.
+
+                /**
+                 * Desativa a ferramenta de Captura de Coordenadas.
+                 * Reseta o estilo do botão, esconde o display de coordenadas,
+                 * restaura o cursor do mapa e remove o listener de clique específico.
+                 */
+                function deactivateCoordCaptureTool() {
+                    if (!isCoordCaptureActive) return; // Já está inativa
+                    isCoordCaptureActive = false;
+                    coordCaptureButton.style.backgroundColor = inactiveToolColor;
+                    coordCaptureButton.title = 'Capturar Coordenada';
+                    coordDisplay.style.display = 'none';
+                    map.getTargetElement().style.cursor = '';
+                    // Remove o listener de clique específico da captura
+                    if (coordCaptureListenerKey) {
+                        ol.Observable.unByKey(coordCaptureListenerKey);
+                        coordCaptureListenerKey = null;
+                    }
+                    console.log("Ferramenta Captura de Coordenadas DESATIVADA.");
+                }
+
+                /**
+                 * Desativa a ferramenta de Buffer.
+                 * Reseta o estilo do botão, o texto de instrução e o cursor do mapa.
+                 */
+                function deactivateBufferTool() {
+                    if (!isBufferToolActive) return; // Já está inativa
+                    isBufferToolActive = false;
+                    toggleBufferButton.textContent = 'Ativar Ferramenta Buffer';
+                    toggleBufferButton.style.backgroundColor = inactiveToolColor;
+                    bufferInstruction.textContent = 'Ative a ferramenta para criar buffers clicando no mapa.';
+                    map.getTargetElement().style.cursor = '';
+                    console.log("Ferramenta Buffer DESATIVADA.");
+                }
+
+                // --- Bloco: Funcionalidade de Buffer ---
+
+                /**
+                 * Cria um buffer circular (usando Turf.js) em torno de uma coordenada dada.
+                 * Lê o raio do input, transforma a coordenada para EPSG:4326 (WGS84) para o Turf,
+                 * calcula o buffer, transforma o resultado de volta para a projeção do mapa
+                 * e adiciona a feição de buffer à camada 'bufferLayer'.
+                 * @param {ol.Coordinate} coordinate - A coordenada central do buffer na projeção do mapa.
+                 */
+                function createBuffer(coordinate) {
+                    const radiusKm = parseFloat(bufferRadiusInput.value);
+                    if (isNaN(radiusKm) || radiusKm <= 0) {
+                        alert("Por favor, insira um raio de buffer válido em km.");
+                        return;
+                    }
+                    try {
+                        // Converte coordenada para WGS84 para usar com Turf.js
+                        const coordinateWGS84 = ol.proj.transform(coordinate, map.getView().getProjection(), 'EPSG:4326');
+                        const pointGeoJSON = turf.point(coordinateWGS84);
+                        // Cria o buffer GeoJSON
+                        const bufferedGeoJSON = turf.buffer(pointGeoJSON, radiusKm, { units: 'kilometers' });
+                        // Converte o buffer GeoJSON de volta para feature OpenLayers na projeção do mapa
+                        const format = new ol.format.GeoJSON();
+                        const bufferFeature = format.readFeature(bufferedGeoJSON, {
+                            dataProjection: 'EPSG:4326',
+                            featureProjection: map.getView().getProjection()
+                        });
+                        // Valida a feature criada
+                        if (!bufferFeature || !bufferFeature.getGeometry()) {
+                             console.error("Falha ao criar a feature OpenLayers ou geometria inválida.");
+                             return;
+                        }
+                        // Adiciona o buffer à camada
+                        bufferSource.addFeature(bufferFeature);
+                        console.log("Buffer criado e adicionado à camada."); // Log (controle)
+                    } catch (error) {
+                        console.error("Erro ao criar buffer:", error);
+                        alert("Ocorreu um erro ao criar o buffer.");
+                    }
+                }
+
+                // Listener de clique para o botão Ativar/Desativar Ferramenta Buffer.
+                // Garante que a ferramenta de captura seja desativada (exclusividade mútua).
+                // Atualiza o estado visual (cor do botão, texto) e funcional (cursor, variável de estado).
+                toggleBufferButton.addEventListener('click', () => {
+                    if (!isBufferToolActive) {
+                        // Ativando Buffer
+                        deactivateCoordCaptureTool(); // Garante exclusividade
+                        isBufferToolActive = true;
+                        toggleBufferButton.textContent = 'Desativar Ferramenta Buffer';
+                        toggleBufferButton.style.backgroundColor = activeToolColor; // Destaque visual
+                        bufferInstruction.textContent = 'Clique em uma feição ou ponto no mapa para criar um buffer.';
+                        map.getTargetElement().style.cursor = 'crosshair';
+                        console.log("Ferramenta Buffer ATIVADA."); // Log (controle)
+                    } else {
+                        // Desativando Buffer
+                        deactivateBufferTool();
+                    }
+                });
+
+                // Listener de clique para o botão Limpar Buffers.
+                // Remove todas as feições da camada de buffer.
+                clearBuffersButton.addEventListener('click', () => {
+                    bufferSource.clear();
+                    console.log("Buffers limpos."); // Log (controle)
+                });
+
+                // Listener de clique para o botão Exportar Buffers.
+                // Converte as feições de buffer para GeoJSON (em EPSG:4326) e inicia o download do arquivo.
+                exportBuffersButton.addEventListener('click', () => {
+                    const features = bufferSource.getFeatures();
+                    if (features.length === 0) {
+                        alert("Não há buffers para exportar.");
+                        return;
+                    }
+                    try {
+                        const format = new ol.format.GeoJSON();
+                        const geojsonString = format.writeFeatures(features, {
+                            dataProjection: 'EPSG:4326',
+                            featureProjection: map.getView().getProjection(),
+                            decimals: 7
+                        });
+                        const blob = new Blob([geojsonString], { type: 'application/json' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = 'buffers.geojson';
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                    } catch (error) {
+                        console.error("Erro ao exportar buffers:", error);
+                        alert("Ocorreu um erro ao exportar os buffers.");
+                    }
+                });
+
+                // --- Bloco: Funcionalidade de Captura de Coordenadas ---
+
+                /**
+                 * Copia um texto fornecido para a área de transferência do usuário.
+                 * Usa a API Clipboard (navigator.clipboard) se disponível, com fallback
+                 * para o método document.execCommand('copy') para navegadores mais antigos.
+                 * Inclui um feedback visual (pisca o fundo da caixa de coordenadas).
+                 * @param {string} text - O texto a ser copiado.
+                 */
+                function copyToClipboard(text) {
+                    if (!navigator.clipboard) {
+                        try {
+                            const textArea = document.createElement("textarea");
+                            textArea.value = text;
+                            textArea.style.position = "fixed"; textArea.style.top = "-9999px"; textArea.style.left = "-9999px";
+                            document.body.appendChild(textArea);
+                            textArea.select();
+                            document.execCommand("copy");
+                            document.body.removeChild(textArea);
+                            // Feedback visual
+                            coordDisplay.style.transition = "background-color 0.1s ease-in-out";
+                            coordDisplay.style.backgroundColor = "rgba(212, 237, 218, 0.8)";
+                            setTimeout(() => { coordDisplay.style.backgroundColor = "rgba(255, 255, 255, 0.8)"; }, 300);
+                        } catch (err) {
+                            console.error("Falha ao copiar usando fallback:", err);
+                        }
+                        return;
+                    }
+                    navigator.clipboard.writeText(text).then(() => {
+                        // Feedback visual
+                        coordDisplay.style.transition = "background-color 0.1s ease-in-out";
+                        coordDisplay.style.backgroundColor = "rgba(212, 237, 218, 0.8)";
+                        setTimeout(() => { coordDisplay.style.backgroundColor = "rgba(255, 255, 255, 0.8)"; }, 300);
+                    }).catch(err => {
+                        console.error("Erro ao copiar para a área de transferência:", err);
+                    });
+                }
+
+                // Listener de clique para o botão Ativar/Desativar Captura de Coordenadas.
+                // Garante que a ferramenta de buffer seja desativada (exclusividade mútua).
+                // Atualiza o estado visual (cor do botão, display de coordenadas) e funcional (cursor, variável de estado).
+                // Adiciona um listener de clique *específico* ao mapa ('coordCaptureListenerKey')
+                // que só será executado quando esta ferramenta estiver ativa.
+                coordCaptureButton.addEventListener('click', () => {
+                    if (!isCoordCaptureActive) {
+                        // Ativando Captura
+                        deactivateBufferTool(); // Garante exclusividade
+                        isCoordCaptureActive = true;
+                        coordCaptureButton.style.backgroundColor = activeToolColor; // Destaque visual
+                        coordCaptureButton.title = 'Desativar Captura de Coordenada';
+                        coordDisplay.style.display = 'block';
+                        coordDisplay.textContent = 'Clique no mapa para capturar (Lat, Lon)...';
+                        map.getTargetElement().style.cursor = 'pointer';
+
+                        // Adiciona listener de clique específico para captura, APENAS se não existir
+                        if (!coordCaptureListenerKey) {
+                            coordCaptureListenerKey = map.on('singleclick', function(evt) {
+                                // Este listener só faz algo se a captura estiver ativa
+                                if (!isCoordCaptureActive) return;
+                                const coordinate = evt.coordinate;
+                                const lonLat = ol.proj.toLonLat(coordinate);
+                                const lon = lonLat[0].toFixed(6);
+                                const lat = lonLat[1].toFixed(6);
+                                const coordStringLatLon = `${lat} , ${lon}`;
+                                coordDisplay.textContent = `Coord (Lat, Lon): ${coordStringLatLon}`;
+                                copyToClipboard(coordStringLatLon); // Copia apenas Lat, Lon
+                            });
+                        }
+                        console.log("Ferramenta Captura de Coordenadas ATIVADA."); // Log (controle)
+                    } else {
+                        // Desativando Captura
+                        deactivateCoordCaptureTool();
+                    }
+                });
+
+                // --- Bloco: Funcionalidade de Arrastar Painel de Buffer ---
+                // Implementa a capacidade de mover o painel de controles de buffer pela tela.
+                // Usa eventos mousedown, mousemove e mouseup no cabeçalho do painel.
+                panelHeader.addEventListener('mousedown', (e) => {
+                    isDragging = true;
+                    offsetX = e.clientX - bufferPanel.offsetLeft;
+                    offsetY = e.clientY - bufferPanel.offsetTop;
+                    panelHeader.style.cursor = 'grabbing';
+                    document.body.style.userSelect = 'none'; // Evita seleção de texto durante o arraste
+                });
+
+                document.addEventListener('mousemove', (e) => {
+                    if (!isDragging) return;
+                    let newX = e.clientX - offsetX;
+                    let newY = e.clientY - offsetY;
+                    // Limita o movimento do painel aos limites da div do mapa.
+                    const mapDiv = document.getElementById('map');
+                    const maxX = mapDiv.clientWidth - bufferPanel.offsetWidth;
+                    const maxY = mapDiv.clientHeight - bufferPanel.offsetHeight;
+                    newX = Math.max(0, Math.min(newX, maxX));
+                    newY = Math.max(0, Math.min(newY, maxY));
+                    bufferPanel.style.left = newX + 'px';
+                    bufferPanel.style.top = newY + 'px';
+                });
+
+                document.addEventListener('mouseup', () => {
+                    if (isDragging) {
+                        isDragging = false;
+                        panelHeader.style.cursor = 'move';
+                        document.body.style.userSelect = ''; // Reabilita seleção de texto
+                    }
+                });
+
+                // --- Bloco: Funcionalidade de Upload de Camada (GeoJSON/KML) ---
+                // Ativa o input de arquivo oculto quando o botão de upload é clicado.
+                uploadButton.addEventListener('click', () => { fileInput.click(); });
+
+                // Listener para o evento 'change' do input de arquivo.
+                // Lê o arquivo selecionado pelo usuário (GeoJSON ou KML).
+                // Tenta criar uma nova camada vetorial com os dados do arquivo.
+                // Adiciona a nova camada ao mapa e ao controle de camadas.
+                // Ajusta o zoom para a extensão da nova camada.
+                fileInput.addEventListener('change', (event) => {
+                    const file = event.target.files[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        const fileContent = e.target.result;
+                        const fileName = file.name;
+                        let format = null;
+                        let layerSource = null;
+                        let layer = null;
+                        try {
+                            // Determina o formato (GeoJSON ou KML) e lê as features, reprojetando para o mapa.
+                            if (fileName.toLowerCase().endsWith('.geojson')) {
+                                format = new ol.format.GeoJSON();
+                                const features = format.readFeatures(fileContent, {
+                                    dataProjection: 'EPSG:4326', // Assume o SRC WGS84 como padrão para GeoJSON
+                                    featureProjection: map.getView().getProjection()
+                                });
+                                layerSource = new ol.source.Vector({ features: features });
+                            } else if (fileName.toLowerCase().endsWith('.kml')) {
+                                format = new ol.format.KML({ extractStyles: true, showPointNames: true });
+                                const features = format.readFeatures(fileContent, {
+                                    dataProjection: 'EPSG:4326', // Assume o SRC WGS84 como padrão para GeoJSON
+                                    featureProjection: map.getView().getProjection()
+                                });
+                                layerSource = new ol.source.Vector({ features: features });
+                            } else {
+                                alert('Formato de arquivo não suportado. Use GeoJSON ou KML.');
+                                return;
+                            }
+                            // Cria e adiciona a nova camada vetorial ao mapa.
+                            uploadedLayerCounter++;
+                            const layerTitle = `Camada Carregada ${uploadedLayerCounter} (${fileName})`;
+                            layer = new ol.layer.Vector({
+                                source: layerSource,
+                                title: layerTitle,
+                                style: defaultUploadStyle, // Aplica estilo padrão definido acima.
+                                declutter: true
+                            });
+                            map.addLayer(layer);
+                            // Adiciona a nova camada ao controle de camadas, se existir.
+                            if (typeof layersList !== 'undefined') {
+                                layersList.push(layer);
+                                const layerSwitcher = map.getControls().getArray().find(control => control instanceof ol.control.LayerSwitcher);
+                                if (layerSwitcher) {
+                                    layerSwitcher.renderPanel(); // Atualiza o painel do controle de camadas.
+                                }
+                            }
+                            // Ajusta o zoom do mapa para a extensão da camada carregada.
+                            const extent = layerSource.getExtent();
+                            if (!ol.extent.isEmpty(extent)) {
+                                map.getView().fit(extent, { duration: 1000, padding: [50, 50, 50, 50] });
+                            }
+                        } catch (error) {
+                            console.error("Erro ao carregar camada:", error);
+                            alert("Erro ao processar o arquivo da camada.");
+                        }
+                    };
+                    reader.readAsText(file); // Lê o conteúdo do arquivo como texto.
+                    fileInput.value = ''; // Limpa o input de arquivo para permitir carregar o mesmo arquivo novamente.
+                });
+
+                // --- Bloco: Listener Principal de Clique no Mapa ---
+                // Este listener gerencia o que acontece quando o usuário clica no mapa,
+                // dependendo de qual ferramenta customizada está ativa.
+                map.on('singleclick', function(evt) {
+                    // 1. Se a Captura de Coordenadas está ativa:
+                    //    Não faz nada aqui, pois o listener específico ('coordCaptureListenerKey')
+                    //    já tratou o clique. O 'return' impede a execução do resto do código.
+                    if (isCoordCaptureActive) {
+                        return;
+                    }
+                    // 2. Se a Ferramenta de Buffer está ativa:
+                    //    Cria um buffer. Tenta centralizar o buffer na feição clicada,
+                    //    caso contrário, cria no ponto exato do clique.
+                    //    Também esconde o popup padrão do qgis2web para não interferir.
+                    else if (isBufferToolActive) {
+                        console.log("Clique detectado com ferramenta Buffer ATIVA."); // Log (controle)
+                        // Esconde popup padrão
+                        const overlay = map.getOverlayById('popup');
+                        if (overlay) overlay.setPosition(undefined);
+                        const closer = document.getElementById('popup-closer');
+                        if (closer) closer.blur();
+
+                        let featureFound = false;
+                        // Tenta encontrar uma feição interativa no pixel clicado.
+                        map.forEachFeatureAtPixel(evt.pixel, function(feature, layer) {
+                            // Ignora a própria camada de buffer e camadas não interativas.
+                            if (layer && layer !== bufferLayer && layer.get('interactive') !== false) {
+                                const geometry = feature.getGeometry();
+                                let centerCoordinate = null;
+                                // Tenta obter a coordenada central da geometria (ponto ou centróide).
+                                if (geometry instanceof ol.geom.Point) {
+                                    centerCoordinate = geometry.getCoordinates();
+                                } else if (geometry instanceof ol.geom.Polygon || geometry instanceof ol.geom.MultiPolygon ||
+                                           geometry instanceof ol.geom.LineString || geometry instanceof ol.geom.MultiLineString) {
+                                    try {
+                                        // Usa Turf.js para encontrar um ponto na superfície da feição (mais robusto que getInteriorPoint).
+                                        const format = new ol.format.GeoJSON();
+                                        const featureGeoJSON = format.writeFeatureObject(feature, {
+                                            dataProjection: 'EPSG:4326',
+                                            featureProjection: map.getView().getProjection()
+                                        });
+                                        const center = turf.pointOnFeature(featureGeoJSON);
+                                        if (center && center.geometry && center.geometry.coordinates) {
+                                            centerCoordinate = ol.proj.transform(center.geometry.coordinates, 'EPSG:4326', map.getView().getProjection());
+                                        }
+                                    } catch (e) { centerCoordinate = evt.coordinate; } // Fallback para coordenada do clique em caso de erro.
+                                } else { centerCoordinate = evt.coordinate; } // Fallback para coordenada do clique se tipo de geometria não for tratado.
+
+                                // Se uma coordenada central foi encontrada, cria o buffer e para a busca.
+                                if (centerCoordinate) {
+                                    createBuffer(centerCoordinate);
+                                    featureFound = true;
+                                    return true; // Interrompe o forEachFeatureAtPixel.
+                                }
+                            }
+                        }, { hitTolerance: 5 }); // Tolerância de clique em pixels.
+
+                        // Se nenhuma feição interativa foi encontrada no clique, cria o buffer no ponto exato do clique.
+                        if (!featureFound) {
+                            createBuffer(evt.coordinate);
+                        }
+                    }
+                    // 3. Se NENHUMA ferramenta customizada está ativa:
+                    //    Chama a função padrão 'displayFeatureInfo' do qgis2web.js
+                    //    para tentar exibir o popup com informações da feição clicada.
+                    else {
+                        console.log("Clique detectado (nenhuma ferramenta ativa). Tentando exibir popup."); // Log (controle)
+                        if (typeof displayFeatureInfo === 'function') {
+                            const content = document.getElementById('popup-content');
+                            if (content) content.innerHTML = ''; // Limpa popup anterior para evitar conteúdo duplicado.
+                            displayFeatureInfo(evt.pixel); // Chama a função padrão do qgis2web.
+                        } else {
+                            // console.error("Função displayFeatureInfo não encontrada.");
+                        }
+                    }
+                });
+
+                console.log("Funcionalidades customizadas configuradas."); // Log final (controle)
+
+            } else {
+                console.error("Variável 'map' do OpenLayers não encontrada..."); // Mensagem de erro se o mapa não inicializou a tempo.
+            }
+        }, 500); // Fim do setTimeout
+    </script>
+</body>
+
+</html>
+
